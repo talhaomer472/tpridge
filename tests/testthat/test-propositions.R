@@ -57,3 +57,28 @@ test_that("effective degrees of freedom span p to zero", {
   l <- tpr_lambda(X, rnorm(100), rule = "df", target_df = 1.5)
   expect_equal(tpr_eff_df(X, l), 1.5, tolerance = 1e-6)
 })
+
+test_that("the formula interface matches the matrix interface", {
+  data(longley, package = "datasets")
+  v <- c("GNP", "Unemployed", "Armed.Forces", "Population", "Year")
+  m <- tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces + Population + Year,
+              data = longley)
+  f <- tpr_fit(as.matrix(longley[, v]), longley$Employed)
+  expect_equal(unname(coef(m, "Ridge-II")), unname(coef(f, "Ridge-II")),
+               tolerance = 1e-10)
+  expect_equal(m$q, f$q, tolerance = 1e-12)
+})
+
+test_that("predict on the fitting data reproduces the fitted values", {
+  data(longley, package = "datasets")
+  m <- tpr_lm(Employed ~ GNP + Unemployed + Year, data = longley)
+  expect_equal(predict(m, longley), predict(m), tolerance = 1e-10)
+})
+
+test_that("summary reports variance inflation on a collinear design", {
+  data(longley, package = "datasets")
+  s <- summary(tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces +
+                        Population + Year, data = longley))
+  expect_true(max(s$vif, na.rm = TRUE) > 10)
+  expect_gt(s$condition, 100)
+})

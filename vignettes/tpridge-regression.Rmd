@@ -1,0 +1,138 @@
+---
+title: "Two-parameter ridge for any regression"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Two-parameter ridge for any regression}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 4.5)
+library(tpridge)
+```
+
+The package is built around volatility models, but the estimator is not.
+Two-parameter ridge regression is a remedy for an ill-conditioned
+design, and the design can come from anywhere. This vignette uses
+`tpr_lm()`, the formula interface, on the data with which Hoerl and
+Kennard illustrated ridge regression in the first place.
+
+## The Longley data
+
+Longley (1967) assembled sixteen annual observations on United States
+employment against six macroeconomic series, as a test of the numerical
+accuracy of regression software. The regressors are so nearly collinear
+that early programs returned different answers from one another.
+
+```{r}
+data(longley)
+m <- tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces +
+              Population + Year, data = longley)
+m
+```
+
+```{r}
+summary(m)
+```
+
+The diagnostics say what the problem is. The condition number of the
+cross-product matrix is in the thousands, and several variance inflation
+factors are far above the conventional threshold of ten. Gross national
+product, population and the year index all measure much the same
+expanding economy.
+
+## What the second parameter does here
+
+Notice the recovery figure in that summary: it is small. The reason is
+visible in the same output. The data-driven penalty is mild, so `q` is
+barely above one, and the fit gain is proportional to `(q-1)^2`. The
+correction has almost nothing to work with.
+
+That is not a failure of the method but a property of it, and it is
+worth seeing directly. Fix the shrinkage rather than letting the data
+choose it:
+
+```{r}
+for (df in c(5, 4, 3, 2, 1)) {
+  f <- tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces +
+                Population + Year, data = longley,
+              rule = "df", target_df = df)
+  cat(sprintf("df %4.1f   q %7.4f   recovery %5.1f%%   R2 ridge-I %.5f\n",
+              df, f$q, 100 * f$recovery, f$r2_in[["Ridge-I"]]))
+}
+```
+
+As the penalty tightens, `q` grows and the share of the sacrificed fit
+that the second parameter restores grows with it. This is the content of
+Proposition 2: the gain is exactly
+$(q-1)^2\|X\hat\beta_I\|^2/y'y$, so it is negligible when `q` is close
+to one and substantial when it is not.
+
+```{r}
+plot(m, which = "path")
+```
+
+Least squares is flat, because it does not depend on the penalty. As
+shrinkage increases the one-parameter estimator falls away while the
+two-parameter estimator tracks least squares closely.
+
+## Comparing with least squares
+
+```{r}
+ols <- lm(Employed ~ GNP + Unemployed + Armed.Forces + Population + Year,
+          data = longley)
+round(cbind(lm = coef(ols), coef(m, "OLS"),
+            `Ridge-I` = coef(m, "Ridge-I"),
+            `Ridge-II` = coef(m, "Ridge-II")), 4)
+```
+
+The first two columns agree, as they must: at the level of the
+coefficients, `tpr_lm()` with no penalty is least squares. The ridge
+columns pull the collinear coefficients towards one another, which is
+the point.
+
+## Prediction
+
+```{r}
+newd <- longley[1:3, ]
+predict(m, newd, estimator = "Ridge-II")
+predict(m, newd, estimator = "OLS")
+```
+
+## A note on inference
+
+`summary()` prints no standard errors, and this is deliberate. The
+sampling distribution of a shrinkage estimator is not that of least
+squares, so the usual standard errors, $t$ statistics and confidence
+intervals do not carry over. Reporting them would be misleading.
+
+If inference is needed, a bootstrap that resamples the whole estimation
+procedure, penalty selection included, is the defensible route. For
+least squares coefficients on the same data, `lm()` and a
+heteroskedasticity and autocorrelation consistent covariance estimator
+remain appropriate.
+
+## When is this worth using
+
+The diagnostics in `summary()` answer that. A condition number in the
+hundreds or thousands, or variance inflation factors above ten, indicate
+a design where least squares coefficients are unstable and shrinkage is
+worth considering. Whether the *second* parameter adds much then depends
+on `q`, which the summary also reports: close to one and the correction
+is negligible, materially above one and it recovers most of the fit that
+one-parameter ridge gives up.
+
+## References
+
+Hoerl, A. E. and Kennard, R. W. (1970). Ridge regression: biased
+estimation for nonorthogonal problems. *Technometrics* 12, 55--67.
+
+Lipovetsky, S. and Conklin, W. M. (2005). Ridge regression in
+two-parameter solution. *Applied Stochastic Models in Business and
+Industry* 21, 525--540.
+
+Longley, J. W. (1967). An appraisal of least squares programs for the
+electronic computer from the point of view of the user. *Journal of the
+American Statistical Association* 62, 819--841.

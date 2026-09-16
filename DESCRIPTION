@@ -1,7 +1,7 @@
 Package: tpridge
 Type: Package
 Title: Two-Parameter Ridge Estimation of HAR Realized-Volatility Models
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person("Talha", "Omer", email = "talha.omer@lnu.se",
            role = c("aut", "cre")),

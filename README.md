@@ -36,8 +36,22 @@ fit <- tpr_fit(X, y)        # OLS, ridge-I and Ridge-II together
 plot(fit, which = "path")
 ```
 
-`tpr_lambda()` and `tpr_q()` take any design matrix, so they can be used
-outside the HAR setting.
+## Any regression, not only HAR
+
+Nothing about the estimator is specific to volatility. `tpr_lm()` gives
+it a formula interface:
+
+```r
+data(longley)
+m <- tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces + Population + Year,
+            data = longley)
+summary(m)
+```
+
+The summary reports the three coefficient vectors side by side with the
+variance inflation factors, the condition number, the penalty, `q` and
+the effective degrees of freedom. `tpr_lambda()` and `tpr_q()` also take
+a bare design matrix if you prefer.
 
 ## The whole pipeline
 
@@ -67,8 +81,8 @@ machine precision.
 
 ## Function reference
 
-**Estimation** `tpr_fit`, `tpr_q`, `tpr_lambda`, `tpr_eff_df`,
-`tpr_window`
+**Estimation** `tpr_lm` (formula), `tpr_fit` (matrix), `tpr_q`,
+`tpr_lambda`, `tpr_eff_df`, `tpr_window`
 
 **Data** `binance_klines`, `binance_symbols`, `realized_measures`
 

@@ -34,9 +34,11 @@ har_features <- function(rv, date = NULL, lags = c(1, 5, 22), log = TRUE,
     nm <- if (L == 1L) "RV_d" else sprintf("RV_%d", L)
     v <- if (L == 1L) rv else
       data.table::frollmean(rv, as.integer(L), align = "right")
-    out[[nm]] <- tr(v)
+    data.table::set(out, j = nm, value = tr(v))
   }
-  if (!is.null(date)) out[, date := date]
+  ## data.table::set avoids the shallow-copy warning that `:=` raises on
+  ## a table built by data.table() and then modified by [[<-
+  if (!is.null(date)) data.table::set(out, j = "date", value = date)
   if (!is.null(extra)) {
     e <- data.table::as.data.table(extra)
     if (nrow(e) != length(rv))
