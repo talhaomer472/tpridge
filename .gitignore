@@ -1,0 +1,19 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+
+# build artefacts
+*.Rcheck/
+*.tar.gz
+*.Rproj
+
+# data caches
+binance_cache/
+inst/doc/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,48 @@
+Package: tpridge
+Type: Package
+Title: Two-Parameter Ridge Estimation of HAR Realized-Volatility Models
+Version: 0.1.0
+Authors@R: c(
+    person("Talha", "Omer", email = "talha.omer@lnu.se",
+           role = c("aut", "cre")),
+    person("Muhammad Ibrar", "Khan", role = "aut"),
+    person("Kristofer", "Mansson", role = "aut"),
+    person("Par", "Sjolander", role = "aut"))
+Description: Estimation, forecasting and evaluation for heterogeneous
+    autoregressive (HAR) models of realized volatility using the
+    two-parameter ridge estimator of Lipovetsky and Conklin (2005).
+    The package covers the full pipeline: downloading five-minute klines
+    directly from Binance, constructing realized measures, estimating
+    ordinary least squares and the one- and two-parameter ridge
+    estimators on rolling windows, evaluating forecasts with
+    Diebold-Mariano tests, the model confidence set and Value-at-Risk
+    backtests, and reproducing the Monte Carlo design of the
+    accompanying paper. The penalty and the two-parameter scalar are
+    exported as standalone functions so they can be used with any
+    design matrix.
+License: GPL-3
+Encoding: UTF-8
+Depends: R (>= 4.1.0)
+Imports:
+    data.table (>= 1.14.0),
+    methods,
+    stats,
+    utils,
+    graphics,
+    grDevices
+Suggests:
+    ggplot2,
+    sandwich,
+    lmtest,
+    MCS,
+    rugarch,
+    future,
+    future.apply,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+URL: https://github.com/talhaomer472/tpridge
+BugReports: https://github.com/talhaomer472/tpridge/issues
+Config/roxygen2/version: 8.1.0

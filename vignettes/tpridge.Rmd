@@ -1,0 +1,242 @@
+---
+title: "Two-parameter ridge estimation of HAR realized-volatility models"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Two-parameter ridge estimation of HAR realized-volatility models}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 4.5)
+library(tpridge)
+```
+
+## What the package does
+
+Ridge regression trades a little bias for a large reduction in variance,
+which is why it helps when regressors are collinear. The price is that
+it fits the estimation sample worse than least squares. The two-parameter
+estimator of Lipovetsky and Conklin (2005) recovers part of that lost fit
+by rescaling the ridge coefficient vector by a scalar $q$,
+
+$$\hat\beta_{II}(\lambda) = q(\lambda)\,\hat\beta_{I}(\lambda),
+\qquad q = \frac{\hat\beta_I' r}{\hat\beta_I' G \hat\beta_I},$$
+
+where $G = X'X$ and $r = X'y$ on the standardized, centred design. This
+package implements the estimator, the four analytical results that
+characterise it, and the full pipeline from downloading intraday prices
+to evaluating forecasts.
+
+Four properties are worth stating up front, because the package checks
+all of them and they are what the estimator is for.
+
+**The scalar always exceeds one.** For any $\lambda>0$,
+$q = 1 + \lambda\|\hat\beta_I\|^2 / \|X\hat\beta_I\|^2 > 1$. This is
+derived rather than assumed.
+
+**The fit gain has a closed form.** The improvement in the coefficient of
+determination is exactly
+$(q-1)^2\|X\hat\beta_I\|^2 / y'y$, so it can be computed without
+re-estimating anything.
+
+**No estimator beats least squares in sample.** The ordering
+$R^2(\hat\beta_{OLS}) \ge R^2(\hat\beta_{II}) \ge R^2(\hat\beta_{I})$
+holds always. The two-parameter estimator closes part of a gap; it never
+crosses it.
+
+**The two estimators fail differently.** As $\lambda\to\infty$ the
+one-parameter estimator collapses to the null predictor, while the
+two-parameter estimator converges to a finite non-zero limit. Under a
+badly chosen penalty this difference is large.
+
+## The estimators on any design
+
+The three core functions take a matrix and a vector, so they work on any
+regression problem.
+
+```{r}
+set.seed(1)
+X <- matrix(rnorm(400), ncol = 4)
+y <- as.numeric(X %*% c(1, 0.6, 0.3, 0.1)) + rnorm(100)
+
+tpr_lambda(X, y)                                # data-driven penalty
+tpr_q(X, y, lambda = 20)                        # the scalar, standalone
+tpr_lambda(X, y, rule = "df", target_df = 2)    # penalty for a target df
+```
+
+The penalty is not scale free: the eigenvalues of $X'X$ grow with the
+sample, so the same $\lambda$ means different amounts of shrinkage in
+different designs. The effective degrees of freedom,
+$\mathrm{df}(\lambda)=\sum_j e_j/(e_j+\lambda)$, are comparable, which is
+why `rule = "df"` exists.
+
+```{r}
+c(tpr_eff_df(X, 0), tpr_eff_df(X, 20), tpr_eff_df(X, 1e6))
+```
+
+Fitting returns all three estimators from one decomposition.
+
+```{r}
+fit <- tpr_fit(X, y, lambda = 20)
+fit
+```
+
+The Proposition 2 residual printed above is the empirical fit gain minus
+its closed form. It is zero to machine precision, always.
+
+```{r}
+plot(fit, which = "path")
+```
+
+## From Binance to realized variance
+
+Downloading is a single call. The monthly archives are public and no key
+is needed; they are cached, so a month already on disk is not fetched
+again.
+
+```{r eval = FALSE}
+k <- binance_klines("BTCUSDT", from = "2024-01", to = "2024-06")
+rm_ <- realized_measures(k)
+head(rm_[, c("date", "n_5m", "RV", "BV", "Jump")])
+```
+
+`realized_measures()` returns realized variance, bipower variation, the
+jump component, the two semivariances, realized quarticity, skewness,
+kurtosis, the Parkinson range and the activity variables. Two
+conventions matter. Returns are differenced over the full series rather
+than within each calendar day, so the interval spanning midnight is
+retained: these markets trade continuously and excluding it would discard
+one return per day. And days with fewer than ninety per cent of the
+expected intervals have their measures set to `NA` rather than being
+silently computed from partial data.
+
+The identities hold by construction, which is a useful check on any
+replication:
+
+```{r eval = FALSE}
+max(abs(rm_$RV - (rm_$RSV_pos + rm_$RSV_neg)), na.rm = TRUE)   # ~1e-16
+```
+
+## Building the HAR model
+
+```{r}
+rv <- har_simulate(800, sigma2 = 0.5)
+feat <- har_features(rv)          # daily, weekly, monthly, and the lead
+des  <- har_design(feat)
+dim(des$X)
+```
+
+The weekly and monthly components are rolling averages ending at $t-1$,
+so every row pairs a forecast origin with the value it predicts. The
+logarithmic transformation is the default because a squared error
+criterion applied to realized variance in levels is dominated by a
+handful of days.
+
+Additional predictors are appended through `extra`:
+
+```{r eval = FALSE}
+feat <- har_features(rm_$RV, date = rm_$date,
+                     extra = rm_[, c("BV", "Jump", "RSV_neg")])
+```
+
+## Rolling forecasts
+
+```{r}
+roll <- tpr_rolling(des$X, des$y, window = 365)
+summary(roll)
+```
+
+Supplying several penalty targets applies all of them to the same window,
+so the comparison across penalties is paired and not contaminated by
+sampling variation in the data.
+
+```{r}
+path <- tpr_rolling(des$X, des$y, window = 365, rule = "df",
+                    target_df = c(3, 2.5, 2, 1.5, 1, 0.5))
+plot(path, which = "path")
+```
+
+The shape of that plot is the practical argument for the second
+parameter. The one-parameter estimator reaches an interior optimum and
+then deteriorates, in places below least squares; the two-parameter
+estimator is close to monotone. Since the appropriate penalty is not
+observable in advance, an estimator that degrades gracefully is worth
+more than one that attains a marginally higher optimum and collapses away
+from it.
+
+```{r}
+plot(roll, which = "q")
+```
+
+## Evaluation
+
+```{r}
+w <- data.table::dcast(roll, origin + actual + prev_mean ~ estimator,
+                       value.var = "pred")
+tpr_metrics(w$actual, w$`Ridge-II`, benchmark = w$prev_mean)
+tpr_dm((w$actual - w$OLS)^2, (w$actual - w$`Ridge-II`)^2)
+```
+
+A positive Diebold and Mariano statistic means the first loss series is
+larger, so the second model forecasts better.
+
+For tail risk, `tpr_var_backtest()` builds
+$\widehat{VaR}_{t+1}=z_\alpha\sqrt{\hat f_{t+1}}$ and applies the
+unconditional coverage test of Kupiec and the independence test of
+Christoffersen. On cryptocurrency data the Gaussian quantile is rejected
+at the one per cent level while a standardised Student-$t$ quantile is
+not, which is a distributional failure rather than a failure of the
+variance forecast.
+
+```{r eval = FALSE}
+tpr_var_backtest(variance_forecast, returns, alpha = 0.01, dist = "student")
+```
+
+The model confidence set is available through `tpr_mcs()` when the `MCS`
+package is installed.
+
+## Reproducing the Monte Carlo study
+
+```{r eval = FALSE}
+mc <- tpr_montecarlo(n = c(100, 200, 400, 500),
+                     sigma2 = c(0.1, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0, 1.1, 1.2),
+                     reps = 1000, seed = 20260911)
+print(mc)
+plot(mc, which = "identity")
+```
+
+The data-generating process is $RV_t = \mu_t\eta_t$ with $\eta_t$ gamma
+with unit mean, so positivity is structural, the conditional mean is
+exactly the HAR conditional mean, and no truncation or transformation is
+required anywhere in the design.
+
+A short run for illustration:
+
+```{r}
+mc <- tpr_montecarlo(n = 200, sigma2 = c(0.5, 1.0), reps = 10,
+                     seed = 1, progress = FALSE)
+print(mc)
+```
+
+The header of that output is the point of the exercise. The share of
+replications in which `q` exceeded one must be 100 per cent and the
+largest Proposition 2 residual must be of order `1e-16`, because both
+are identities rather than empirical regularities.
+
+## References
+
+Corsi, F. (2009). A simple approximate long-memory model of realized
+volatility. *Journal of Financial Econometrics* 7, 174--196.
+
+Hoerl, A. E. and Kennard, R. W. (1970). Ridge regression: biased
+estimation for nonorthogonal problems. *Technometrics* 12, 55--67.
+
+Hoerl, A. E., Kennard, R. W. and Baldwin, K. F. (1975). Ridge
+regression: some simulations. *Communications in Statistics* 4,
+105--123.
+
+Lipovetsky, S. and Conklin, W. M. (2005). Ridge regression in
+two-parameter solution. *Applied Stochastic Models in Business and
+Industry* 21, 525--540.

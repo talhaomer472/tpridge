@@ -1,0 +1,743 @@
+\documentclass[11pt,a4paper]{report}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{fancyvrb}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks,bookmarksnumbered]{hyperref}
+\usepackage{parskip}
+
+\definecolor{codebg}{gray}{0.96}
+\definecolor{rule}{gray}{0.75}
+\DefineVerbatimEnvironment{Rblock}{Verbatim}%
+  {fontsize=\small, frame=leftline, framerule=1.2pt,
+   rulecolor=\color{rule}, framesep=10pt, xleftmargin=12pt,
+   samepage=false}
+
+\titleformat{\chapter}[hang]{\LARGE\bfseries}{\thechapter.}{0.6em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{18pt}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+
+\title{\vspace{-1.5cm}\textbf{\Huge tpridge}\\[6pt]
+{\large Two-Parameter Ridge Estimation of\\HAR Realized-Volatility Models}\\[14pt]
+{\normalsize User Manual, version 0.1.0}}
+\author{Talha Omer \and Muhammad Ibrar Khan \and Kristofer M\aa nsson \and
+P\"ar Sj\"olander}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+\vfill
+\noindent\small
+This manual is written to be followed from start to finish. Every block
+of code runs as printed, and the chapters build on one another: after
+Chapter 3 you will have estimated the model on simulated data, after
+Chapter 5 on real cryptocurrency data downloaded inside R, and after
+Chapter 7 you will have reproduced the tables of the accompanying paper.
+
+\medskip
+\noindent
+The reference manual, generated from the sources, documents every
+argument of every function. Build it with
+\texttt{Rscript build\_manual.R}. This document is the companion to it:
+it explains what to do and why, rather than listing arguments.
+\newpage
+
+\tableofcontents
+\newpage
+
+% =====================================================================
+\chapter{Installation}
+
+\section{From GitHub}
+
+\begin{Rblock}
+install.packages("remotes")
+remotes::install_github("talhaomer/tpridge", build_vignettes = TRUE)
+library(tpridge)
+\end{Rblock}
+
+\section{From a local copy}
+
+If you have the source directory rather than the repository:
+
+\begin{Rblock}
+install.packages("devtools")
+devtools::install("path/to/tpridge", build_vignettes = TRUE)
+\end{Rblock}
+
+\section{What it depends on}
+
+The package needs \texttt{data.table} and nothing else to run. Four
+functions ask for a further package only when you call them, and tell
+you so if it is missing:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Function & Needs \\
+\midrule
+\texttt{tpr\_mcs()} & \texttt{MCS} \\
+Parallel Monte Carlo & \texttt{future}, \texttt{future.apply} \\
+Vignette building & \texttt{knitr}, \texttt{rmarkdown} \\
+Tests & \texttt{testthat} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+To install everything at once:
+
+\begin{Rblock}
+install.packages(c("data.table", "MCS", "future", "future.apply",
+                   "knitr", "rmarkdown", "testthat"))
+\end{Rblock}
+
+\section{Checking the installation}
+
+\begin{Rblock}
+library(tpridge)
+
+set.seed(1)
+X <- matrix(rnorm(400), ncol = 4)
+y <- as.numeric(X %*% c(1, 0.6, 0.3, 0.1)) + rnorm(100)
+fit <- tpr_fit(X, y)
+fit
+\end{Rblock}
+
+You should see a block reporting the penalty, \texttt{q}, the effective
+degrees of freedom, the three coefficients of determination, and a line
+reading \emph{Proposition 2 residual} followed by a number of order
+$10^{-16}$. That last line is the package verifying its own central
+identity; if it is not tiny, something is wrong and you should not
+proceed.
+
+% =====================================================================
+\chapter{The idea in one page}
+
+Ridge regression adds a penalty $\lambda$ to the normal equations,
+$$\hat\beta_{I}(\lambda) = (X'X + \lambda I)^{-1} X'y .$$
+This reduces variance and is why ridge helps when regressors are
+collinear. It also fits the estimation sample worse than least squares,
+necessarily so, because least squares maximises the in-sample fit by
+construction.
+
+The two-parameter estimator rescales the ridge vector by a scalar,
+$$\hat\beta_{II}(\lambda) = q(\lambda)\,\hat\beta_{I}(\lambda),
+\qquad
+q = \frac{\hat\beta_I' r}{\hat\beta_I' G \hat\beta_I},
+\qquad G = X'X, \; r = X'y,$$
+choosing $q$ to maximise the fit along the ray $\{q\hat\beta_I\}$. Four
+results follow, and the package verifies each of them numerically.
+
+\paragraph{The scalar always exceeds one.}
+$q = 1 + \lambda\|\hat\beta_I\|^2/\|X\hat\beta_I\|^2 > 1$ for every
+$\lambda>0$. It is derived, not assumed.
+
+\paragraph{The fit gain has a closed form.}
+$$R^2(\hat\beta_{II}) - R^2(\hat\beta_{I})
+= \frac{(q-1)^2\,\|X\hat\beta_I\|^2}{y'y}.$$
+This is the central result. It says exactly how much fit the second
+parameter recovers, in terms of quantities already computed.
+
+\paragraph{Nothing beats least squares in sample.}
+$R^2(\hat\beta_{OLS}) \ge R^2(\hat\beta_{II}) \ge R^2(\hat\beta_{I})$
+always. The second parameter closes part of a gap; it never crosses it.
+Any claim of an in-sample improvement over least squares would be false.
+
+\paragraph{The two estimators fail differently.}
+As $\lambda\to\infty$ the one-parameter estimator collapses to the null
+predictor, while the two-parameter estimator converges to a finite
+non-zero limit. Under a badly chosen penalty this difference is large,
+and since the right penalty is not observable in advance, it is the
+practical argument for the method.
+
+\section{A warning about $\lambda$}
+
+The penalty is not scale free. The eigenvalues of $X'X$ grow with the
+sample size, so the same $\lambda$ delivers different amounts of
+shrinkage in different designs, and reporting ``$\lambda = 2000$'' tells
+the reader nothing. The package therefore works with the effective
+degrees of freedom,
+$$\mathrm{df}(\lambda) = \sum_{j=1}^{p} \frac{e_j}{e_j + \lambda},$$
+which falls from $p$ at $\lambda = 0$ towards zero. Saying ``the model
+retains 1.5 of 3 effective parameters'' is interpretable; saying
+$\lambda = 2000$ is not.
+
+% =====================================================================
+\chapter{First steps: the estimators alone}
+
+The three core functions take a design matrix and a response. They know
+nothing about volatility and can be used on any regression problem.
+
+\section{Choosing a penalty}
+
+\begin{Rblock}
+set.seed(1)
+X <- matrix(rnorm(400), ncol = 4)
+y <- as.numeric(X %*% c(1, 0.6, 0.3, 0.1)) + rnorm(100)
+
+tpr_lambda(X, y)                                # data-driven, HKB rule
+tpr_lambda(X, y, rule = "df", target_df = 2)    # penalty for a target df
+\end{Rblock}
+
+The first is the rule of Hoerl, Kennard and Baldwin (1975),
+$\hat\lambda = p\hat\sigma^2 / \hat\beta'_{OLS}\hat\beta_{OLS}$. The
+second solves $\mathrm{df}(\lambda) = 2$ for $\lambda$, so you state the
+shrinkage you want and the function finds the penalty that delivers it.
+
+\section{The scalar on its own}
+
+\begin{Rblock}
+q <- tpr_q(X, y, lambda = 20)
+q                       # always greater than one
+attr(q, "eff_df")       # the shrinkage this corresponds to
+attr(q, "rho")          # the Rayleigh quotient that determines q
+\end{Rblock}
+
+\section{Fitting all three estimators}
+
+\begin{Rblock}
+fit <- tpr_fit(X, y, lambda = 20)
+fit
+
+coef(fit, "OLS")
+coef(fit, "Ridge-I")
+coef(fit, "Ridge-II")
+
+fit$r2_in          # in-sample fit of all three
+fit$recovery       # share of the sacrificed fit that is recovered
+fit$condition      # condition number of the design
+\end{Rblock}
+
+\section{Seeing the trade-off}
+
+\begin{Rblock}
+plot(fit, which = "path")   # R2 against effective degrees of freedom
+plot(fit, which = "coef")   # the three coefficient vectors
+plot(fit, which = "gap")    # the fit gain against the penalty
+\end{Rblock}
+
+The first plot is the one to look at. Least squares is flat, because it
+does not depend on the penalty. As shrinkage increases, the
+one-parameter estimator falls away steeply while the two-parameter
+estimator stays close to least squares. The vertical dotted line marks
+the penalty actually selected.
+
+\section{Verifying the theory yourself}
+
+\begin{Rblock}
+for (l in c(1, 20, 500, 5000, 1e6)) {
+  f <- tpr_fit(X, y, lambda = l)
+  cat(sprintf("lambda %8.0f  q %7.4f  residual %.2e  ordering %s\n",
+      l, f$q, abs(f$gap_empirical - f$gap_theoretical),
+      f$r2_in[["OLS"]] >= f$r2_in[["Ridge-II"]] &&
+      f$r2_in[["Ridge-II"]] >= f$r2_in[["Ridge-I"]]))
+}
+\end{Rblock}
+
+Every residual should be of order $10^{-16}$, every $q$ above one, and
+every ordering \texttt{TRUE}.
+
+% =====================================================================
+\chapter{Downloading data}
+
+\section{Five-minute prices from Binance}
+
+\begin{Rblock}
+k <- binance_klines("BTCUSDT", from = "2024-01", to = "2024-06")
+head(k)
+\end{Rblock}
+
+No API key is needed: the monthly archives are public. Files are cached,
+so a month already downloaded is not fetched again. To keep them between
+sessions, give a directory:
+
+\begin{Rblock}
+k <- binance_klines("BTCUSDT", from = "2018-05", to = "2025-12",
+                    dir = "~/binance_cache")
+\end{Rblock}
+
+The five pairs used in the paper:
+
+\begin{Rblock}
+binance_symbols()
+#> "BTCUSDT" "ETHUSDT" "LTCUSDT" "XRPUSDT" "BNBUSDT"
+\end{Rblock}
+
+\section{Two details that matter}
+
+Binance changed the \texttt{open\_time} field from milliseconds to
+microseconds partway through the history. If you write your own reader
+and do not handle this, every recent date will be wrong by a factor of a
+thousand. \texttt{binance\_klines()} detects and normalises it. Some
+archives also carry a header row while others do not, which is likewise
+detected.
+
+\section{Realized measures}
+
+\begin{Rblock}
+rm_ <- realized_measures(k)
+head(rm_[, c("date", "n_5m", "RV", "BV", "Jump")])
+\end{Rblock}
+
+This returns realized variance, bipower variation, the jump component,
+the two semivariances, realized quarticity, realized skewness and
+kurtosis, the Parkinson range, and the activity variables.
+
+Two conventions are worth knowing. Returns are differenced over the full
+series rather than within each calendar day, so the interval spanning
+midnight is retained and a complete day contributes 288 returns rather
+than 287. These markets trade continuously, so excluding it would
+discard part of each day. Set \texttt{within\_day = TRUE} to exclude it.
+And days with fewer than ninety per cent of the expected intervals have
+their measures set to \texttt{NA} rather than being computed from
+partial data; change the threshold with \texttt{min\_share}.
+
+\section{Checking what you built}
+
+\begin{Rblock}
+max(abs(rm_$RV - (rm_$RSV_pos + rm_$RSV_neg)), na.rm = TRUE)   # ~1e-16
+max(abs(rm_$Jump - pmax(rm_$RV - rm_$BV, 0)), na.rm = TRUE)    # ~1e-16
+all(rm_$RV > 0, na.rm = TRUE)                                  # TRUE
+\end{Rblock}
+
+These identities hold by construction. They are the fastest way to
+confirm that a replication has gone right, because three quantities
+computed by separate sums over the same returns can only agree to
+machine precision if they came from one genuine return series.
+
+% =====================================================================
+\chapter{Estimating a HAR model}
+
+\section{Building the features}
+
+\begin{Rblock}
+feat <- har_features(rm_$RV, date = rm_$date)
+head(feat)
+\end{Rblock}
+
+The daily, weekly and monthly components are rolling averages ending at
+$t-1$, and \texttt{y} is the value for the next day, so each row pairs a
+forecast origin with what it predicts. The logarithm is taken by default,
+for a reason explained in Section 5.3.
+
+To add predictors:
+
+\begin{Rblock}
+feat <- har_features(rm_$RV, date = rm_$date,
+                     extra = rm_[, c("BV", "Jump", "RSV_neg")])
+\end{Rblock}
+
+Different averaging windows:
+
+\begin{Rblock}
+feat <- har_features(rm_$RV, lags = c(1, 7, 30))
+\end{Rblock}
+
+\section{The design matrix}
+
+\begin{Rblock}
+des <- har_design(feat)
+dim(des$X)
+
+# or a subset of the predictors
+des <- har_design(feat, predictors = c("RV_d", "RV_5", "RV_22"))
+\end{Rblock}
+
+\section{Why the logarithm}
+
+Realized variance in levels is extremely right skewed. On the
+cryptocurrency data used in the paper, skewness runs between 11 and 22
+and kurtosis between 194 and 657, and a single day can contribute more
+squared error than the entire evaluation sample. A squared error
+criterion applied to the level series therefore measures how well a model
+happened to do on a handful of days. In logarithms the skewness falls
+below 0.7 and the kurtosis below 4.
+
+Forecasts are returned to the level scale where needed, with the
+correction $\exp(\hat f + \hat\sigma^2/2)$.
+
+\section{A single fit}
+
+\begin{Rblock}
+fit <- tpr_fit(des$X, des$y)
+fit
+\end{Rblock}
+
+% =====================================================================
+\chapter{Rolling forecasts}
+
+\section{The basic call}
+
+\begin{Rblock}
+roll <- tpr_rolling(des$X, des$y, window = 365, date = des$date)
+summary(roll)
+\end{Rblock}
+
+The model is refitted in every window, and the penalty is reselected
+every time, so nothing from the future enters any estimate. The output
+has one row per forecast origin per estimator, carrying the forecast,
+the realization, the penalty, \texttt{q}, the effective degrees of
+freedom, the condition number, the in-sample fit and the two fit-gain
+quantities.
+
+\section{A path over several penalties}
+
+\begin{Rblock}
+path <- tpr_rolling(des$X, des$y, window = 365, rule = "df",
+                    target_df = c(3, 2.5, 2, 1.5, 1, 0.5))
+plot(path, which = "path")
+\end{Rblock}
+
+All six penalties are applied to the \emph{same} window, so the
+comparison across them is paired. This matters: if each penalty drew its
+own data, differences between estimators would be contaminated by
+sampling variation, and you would see least squares appear to vary with
+$\lambda$, which is impossible.
+
+\section{Looking at the output}
+
+\begin{Rblock}
+plot(roll, which = "forecast")   # realization against forecast
+plot(roll, which = "q")          # the scalar over time
+plot(roll, which = "lambda")     # the penalty and the effective df
+\end{Rblock}
+
+\section{What to expect}
+
+On cryptocurrency data with a data-driven penalty, $q$ typically lies
+between 1.01 and 1.06. The two-parameter correction is a one to six per
+cent rescaling: real, exactly quantified, but small. It grows as the
+penalty tightens, which is why the path in Section 6.2 is the more
+informative exercise.
+
+% =====================================================================
+\chapter{Evaluating forecasts}
+
+\section{Loss measures}
+
+\begin{Rblock}
+w <- data.table::dcast(roll, origin + actual + prev_mean ~ estimator,
+                       value.var = "pred")
+
+tpr_metrics(w$actual, w$OLS,        benchmark = w$prev_mean)
+tpr_metrics(w$actual, w$`Ridge-I`,  benchmark = w$prev_mean)
+tpr_metrics(w$actual, w$`Ridge-II`, benchmark = w$prev_mean)
+\end{Rblock}
+
+The benchmark is the prevailing historical mean, which uses only
+information available at each forecast origin. A negative out-of-sample
+$R^2$ means the model forecasts worse than that simple average.
+
+\section{Diebold and Mariano}
+
+\begin{Rblock}
+tpr_dm((w$actual - w$OLS)^2, (w$actual - w$`Ridge-II`)^2)
+\end{Rblock}
+
+A positive statistic means the first loss series is larger, so the second
+model forecasts better. The long-run variance is estimated with a
+Bartlett kernel and a data-driven bandwidth, which matters because
+forecast errors from a rolling window are serially correlated.
+
+\section{Model confidence set}
+
+\begin{Rblock}
+L <- cbind(OLS = (w$actual - w$OLS)^2,
+           RI  = (w$actual - w$`Ridge-I`)^2,
+           RII = (w$actual - w$`Ridge-II`)^2)
+tpr_mcs(L, alpha = 0.10)
+\end{Rblock}
+
+This answers the right question when several models compete: which can
+be eliminated, rather than which happens to have the lowest average loss.
+
+\section{Value-at-Risk}
+
+\begin{Rblock}
+vf <- w$`Ridge-II`                # variance forecast, level scale
+rt <- returns                     # the realized returns for those days
+
+tpr_var_backtest(vf, rt, alpha = 0.01, dist = "normal")
+tpr_var_backtest(vf, rt, alpha = 0.01, dist = "student", df = 5)
+\end{Rblock}
+
+On cryptocurrency data the Gaussian quantile is rejected at the one per
+cent level for almost every model, while a standardised Student-$t$
+quantile is not. The variance forecast is not the problem; the assumed
+shape of the conditional distribution is.
+
+% =====================================================================
+\chapter{The Monte Carlo study}
+
+\section{A short run}
+
+\begin{Rblock}
+mc <- tpr_montecarlo(n = c(100, 200), sigma2 = c(0.5, 1.0),
+                     reps = 50, seed = 1)
+print(mc)
+plot(mc, which = "identity")
+\end{Rblock}
+
+\section{The full design of the paper}
+
+\begin{Rblock}
+mc <- tpr_montecarlo(
+  n       = c(100, 200, 400, 500),
+  sigma2  = c(0.1, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0, 1.1, 1.2),
+  reps    = 1000,
+  seed    = 20260911)
+\end{Rblock}
+
+This is 36,000 replications and takes some time. Start with a short run
+and confirm the verification block before committing to it.
+
+\section{The data-generating process}
+
+$$RV_t = \mu_t \eta_t, \qquad
+\eta_t \sim \mathrm{Gamma}(k, 1/k), \quad \mathrm{E}[\eta_t] = 1,$$
+with $\mu_t$ the HAR conditional mean. Three properties follow. The
+conditional mean of the generated series is exactly the HAR conditional
+mean, so the estimated equation is correctly specified rather than an
+approximation. Positivity is structural, since $\mu_t \ge \alpha > 0$ and
+$\eta_t > 0$, so no truncation or transformation is needed anywhere. And
+the regressors are collinear by construction, because the daily component
+is one of the terms averaged in the weekly, which is contained in the
+monthly. That nesting is a property of the HAR model itself, and it is
+the reason shrinkage is worth considering.
+
+\begin{Rblock}
+rv <- har_simulate(1000, sigma2 = 0.5)
+all(rv > 0)              # TRUE, structurally
+mean(rv)                 # approximately 1 with the default parameters
+\end{Rblock}
+
+\section{Reading the output}
+
+\begin{Rblock}
+print(mc)
+\end{Rblock}
+
+The header reports the share of replications in which $q$ exceeded one,
+which must be 100 per cent, and the largest Proposition 2 residual, which
+must be of order $10^{-16}$. These are identities: a departure indicates
+an implementation error, not a property of the data.
+
+\begin{Rblock}
+plot(mc, which = "r2")         # out-of-sample fit by sample size
+plot(mc, which = "recovery")   # share of sacrificed fit restored
+plot(mc, which = "identity")   # empirical against theoretical gain
+\end{Rblock}
+
+% =====================================================================
+\chapter{A complete worked example}
+
+Everything from download to evaluation, for one asset.
+
+\begin{Rblock}
+library(tpridge)
+library(data.table)
+
+## 1. download five-minute prices
+k <- binance_klines("BTCUSDT", from = "2018-05", to = "2025-12",
+                    dir = "~/binance_cache")
+
+## 2. daily realized measures
+rm_ <- realized_measures(k)
+cat(sprintf("%d days, %s to %s\n", nrow(rm_),
+            min(rm_$date), max(rm_$date)))
+
+## 3. check the identities before going further
+stopifnot(max(abs(rm_$RV - (rm_$RSV_pos + rm_$RSV_neg)),
+              na.rm = TRUE) < 1e-12)
+
+## 4. HAR features with the realized measures as extra predictors
+feat <- har_features(rm_$RV, date = rm_$date,
+                     extra = rm_[, .(lBV = log(BV), Jump,
+                                     lRSVn = log(RSV_neg),
+                                     sqRQ = sqrt(RQ))])
+des <- har_design(feat)
+
+## 5. rolling forecasts, one year of estimation data
+roll <- tpr_rolling(des$X, des$y, window = 365, date = des$date,
+                    progress = TRUE)
+
+## 6. how did they do
+summary(roll)
+
+## 7. is the difference significant
+w <- dcast(roll, origin + actual + prev_mean ~ estimator,
+           value.var = "pred")
+tpr_dm((w$actual - w$OLS)^2, (w$actual - w$`Ridge-II`)^2)
+
+## 8. did the theory hold in every window
+rii <- roll[estimator == "Ridge-II"]
+cat(sprintf("q > 1 in %.1f%% of windows\n", 100 * mean(rii$q > 1)))
+cat(sprintf("largest Proposition 2 residual %.2e\n",
+            max(abs(rii$gap_empirical - rii$gap_theoretical))))
+
+## 9. look at it
+plot(roll, which = "forecast")
+plot(roll, which = "q")
+\end{Rblock}
+
+\section{Doing this for several assets}
+
+\begin{Rblock}
+assets <- binance_symbols()
+out <- lapply(assets, function(a) {
+  k   <- binance_klines(a, "2018-05", "2025-12", dir = "~/binance_cache")
+  rm_ <- realized_measures(k)
+  des <- har_design(har_features(rm_$RV, date = rm_$date))
+  r   <- tpr_rolling(des$X, des$y, window = 365, date = des$date)
+  cbind(asset = a, summary(r))
+})
+rbindlist(out)
+\end{Rblock}
+
+% =====================================================================
+\chapter{Function reference}
+
+\begin{longtable}{p{0.34\textwidth} p{0.60\textwidth}}
+\toprule
+\textbf{Estimation} & \\
+\midrule
+\texttt{tpr\_fit(X, y, ...)} & All three estimators from one
+decomposition. Returns an object of class \texttt{tpr\_fit}. \\
+\texttt{tpr\_q(X, y, lambda)} & The two-parameter scalar, standalone. \\
+\texttt{tpr\_lambda(X, y, rule)} & The penalty, by the data-driven rule
+or for a target effective degrees of freedom. \\
+\texttt{tpr\_eff\_df(x, lambda)} & Effective degrees of freedom. \\
+\texttt{tpr\_window(X, y)} & Decompose a design once, for reuse across
+penalties. \\
+\addlinespace
+\toprule
+\textbf{Data} & \\
+\midrule
+\texttt{binance\_klines(symbol, from, to)} & Download and cache
+five-minute archives. \\
+\texttt{binance\_symbols()} & The five pairs used in the paper. \\
+\texttt{realized\_measures(x)} & Daily measures from intraday prices. \\
+\addlinespace
+\toprule
+\textbf{HAR} & \\
+\midrule
+\texttt{har\_features(rv, ...)} & Daily, weekly and monthly components
+plus the target. \\
+\texttt{har\_design(features)} & Design matrix and response, complete
+cases. \\
+\texttt{har\_simulate(n, sigma2)} & Simulate the process. \\
+\addlinespace
+\toprule
+\textbf{Forecasting} & \\
+\midrule
+\texttt{tpr\_rolling(X, y, window)} & Rolling one-step forecasts for all
+three estimators. \\
+\addlinespace
+\toprule
+\textbf{Evaluation} & \\
+\midrule
+\texttt{tpr\_metrics(actual, pred)} & Mean squared error, mean absolute
+error, out-of-sample $R^2$, quasi-likelihood. \\
+\texttt{tpr\_dm(loss\_a, loss\_b)} & Diebold and Mariano with a HAC
+long-run variance. \\
+\texttt{tpr\_mcs(loss)} & Model confidence set. \\
+\texttt{tpr\_var\_backtest(v, r)} & Kupiec and Christoffersen tests. \\
+\addlinespace
+\toprule
+\textbf{Simulation} & \\
+\midrule
+\texttt{tpr\_montecarlo(...)} & The Monte Carlo design of the paper. \\
+\bottomrule
+\end{longtable}
+
+\section{Methods}
+
+\texttt{print}, \texttt{coef}, \texttt{fitted}, \texttt{predict} and
+\texttt{plot} for \texttt{tpr\_fit}; \texttt{print}, \texttt{summary}
+and \texttt{plot} for \texttt{tpr\_rolling}; \texttt{print} and
+\texttt{plot} for \texttt{tpr\_mc}.
+
+% =====================================================================
+\chapter{Troubleshooting}
+
+\paragraph{``Too few complete observations to estimate the model.''}
+The window contains fewer rows than $p+2$ after dropping incomplete
+cases. Either the window is too short or a predictor is mostly missing.
+Check \texttt{colSums(is.na(X))}.
+
+\paragraph{\texttt{target\_df} must lie in $(0, p]$.}
+The effective degrees of freedom cannot exceed the number of predictors.
+With three predictors, \texttt{target\_df = 3} recovers least squares and
+\texttt{target\_df = 0.5} is heavy shrinkage.
+
+\paragraph{A month fails to download.}
+The pair may not have been listed yet. The function reports the month and
+continues. \texttt{binance\_klines("XRPUSDT", "2017-01", "2018-12")}
+returns data only from May 2018, when the pair was listed.
+
+\paragraph{$q$ is exactly 1.}
+This happens when $\lambda = 0$, where the two-parameter estimator
+coincides with ridge and with least squares. It is correct, not a
+failure.
+
+\paragraph{The Proposition 2 residual is not tiny.}
+This should not occur. If it does, the design matrix is probably
+singular to working precision. Check
+\texttt{tpr\_window(X, y)\$eigenvalues} for values at or below zero.
+
+\paragraph{Out-of-sample $R^2$ exceeds the in-sample $R^2$.}
+The two are computed against different benchmarks: the in-sample figure
+uses each window's own mean, the out-of-sample figure the prevailing mean
+over a longer period. They are not comparable as levels. To compare them,
+compute both against the same benchmark.
+
+\paragraph{\texttt{tpr\_mcs()} says the \texttt{MCS} package is required.}
+Install it with \texttt{install.packages("MCS")}. It is suggested rather
+than required so that the package installs without it.
+
+% =====================================================================
+\chapter{References}
+
+\noindent
+Christoffersen, P. (1998). Evaluating interval forecasts.
+\emph{International Economic Review} 39, 841--862.
+
+\noindent
+Corsi, F. (2009). A simple approximate long-memory model of realized
+volatility. \emph{Journal of Financial Econometrics} 7, 174--196.
+
+\noindent
+Diebold, F. X. and Mariano, R. S. (1995). Comparing predictive accuracy.
+\emph{Journal of Business and Economic Statistics} 13, 253--263.
+
+\noindent
+Hansen, P. R., Lunde, A. and Nason, J. M. (2011). The model confidence
+set. \emph{Econometrica} 79, 453--497.
+
+\noindent
+Hoerl, A. E. and Kennard, R. W. (1970). Ridge regression: biased
+estimation for nonorthogonal problems. \emph{Technometrics} 12, 55--67.
+
+\noindent
+Hoerl, A. E., Kennard, R. W. and Baldwin, K. F. (1975). Ridge
+regression: some simulations. \emph{Communications in Statistics} 4,
+105--123.
+
+\noindent
+Kupiec, P. (1995). Techniques for verifying the accuracy of risk
+measurement models. \emph{Journal of Derivatives} 3, 73--84.
+
+\noindent
+Lipovetsky, S. and Conklin, W. M. (2005). Ridge regression in
+two-parameter solution. \emph{Applied Stochastic Models in Business and
+Industry} 21, 525--540.
+
+\end{document}
