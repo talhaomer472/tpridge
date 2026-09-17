@@ -111,8 +111,9 @@ and a troubleshooting chapter. Every code block runs as printed.
 **The vignette**, `vignette("tpridge")`, a shorter tour of the same
 ground.
 
-**The reference manual**, generated from the roxygen comments, which
-documents every argument of every function:
+**The reference manual**, `inst/manual/tpridge-reference-manual.pdf`,
+36 pages, one entry per function in the standard R format: description,
+usage, arguments, value, references and examples. Regenerate it with:
 
 ```r
 install.packages(c("roxygen2", "devtools", "rprojroot"))

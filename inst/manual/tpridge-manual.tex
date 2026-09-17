@@ -26,7 +26,7 @@
 
 \title{\vspace{-1.5cm}\textbf{\Huge tpridge}\\[6pt]
 {\large Two-Parameter Ridge Estimation of\\HAR Realized-Volatility Models}\\[14pt]
-{\normalsize User Manual, version 0.1.0}}
+{\normalsize User Manual, version 0.2.0}}
 \author{Talha Omer \and Muhammad Ibrar Khan \and Kristofer M\aa nsson \and
 P\"ar Sj\"olander}
 \date{}
@@ -39,8 +39,16 @@ P\"ar Sj\"olander}
 This manual is written to be followed from start to finish. Every block
 of code runs as printed, and the chapters build on one another: after
 Chapter 3 you will have estimated the model on simulated data, after
-Chapter 5 on real cryptocurrency data downloaded inside R, and after
-Chapter 7 you will have reproduced the tables of the accompanying paper.
+Chapter 4 on a classical ill-conditioned regression, after Chapter 6 on
+real cryptocurrency data downloaded inside R, and after Chapter 8 you
+will have reproduced the tables of the accompanying paper.
+
+\medskip
+\noindent
+Chapter 4 is the one to read if you came for the estimator rather than
+for volatility. The two-parameter ridge is a general remedy for an ill
+conditioned design, and \texttt{tpr\_lm()} applies it to any
+regression.
 
 \medskip
 \noindent
@@ -244,6 +252,124 @@ for (l in c(1, 20, 500, 5000, 1e6)) {
 
 Every residual should be of order $10^{-16}$, every $q$ above one, and
 every ordering \texttt{TRUE}.
+
+% =====================================================================
+\chapter{Any regression, not only HAR}
+
+Nothing about the two-parameter ridge estimator is specific to
+volatility. It is a remedy for an ill-conditioned design, and the design
+can come from anywhere. \texttt{tpr\_lm()} gives it the interface you
+would expect, so it can be used the way \texttt{lm()} is used.
+
+\section{The formula interface}
+
+\begin{Rblock}
+data(longley)
+m <- tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces +
+              Population + Year, data = longley)
+m
+\end{Rblock}
+
+Longley (1967) assembled sixteen annual observations on United States
+employment against six macroeconomic series, as a test of the numerical
+accuracy of regression software. The regressors are so nearly collinear
+that early programs disagreed with one another on the answer. It is the
+canonical ill-conditioned design and the one on which ridge regression
+is usually demonstrated.
+
+\section{Diagnostics}
+
+\begin{Rblock}
+summary(m)
+\end{Rblock}
+
+The summary prints the three coefficient vectors side by side, then the
+diagnostics that bear on whether shrinkage is called for:
+
+\begin{Rblock}
+Collinearity diagnostics:
+  condition number of X'X      6507.3
+  smallest eigenvalue          0.008918
+  variance inflation factors
+    GNP                   1034.22  *
+    Unemployed              23.26  *
+    Armed.Forces             3.15
+    Population             225.71  *
+    Year                   732.64  *
+
+Shrinkage:
+  lambda 0.005037,  q 1.001307,  effective df 4.573 of 5
+\end{Rblock}
+
+A condition number in the thousands and variance inflation factors above
+a thousand say the design is severely ill conditioned. Gross national
+product, population and the year index are all measuring the same
+expanding economy.
+
+\section{What this example teaches}
+
+The recovery figure in that summary is $0.4$ per cent, which looks like
+a disappointment until one reads the line above it. The data-driven
+penalty is $\lambda = 0.005$, giving $q = 1.0013$, and the fit gain is
+proportional to $(q-1)^2$. The correction has almost nothing to work
+with.
+
+This is worth dwelling on, because the natural conjecture is the
+opposite: that severe collinearity should make the second parameter
+matter more. Proposition 1 bounds $q$ above by
+$1 + \lambda/\lambda_{\min}(G)$, so ill-conditioning raises the
+\emph{ceiling} on the attainable gain. Whether the gain is attained
+depends on the realised $q$, which depends on $\lambda/\rho$, and a
+data-driven penalty on a real design generally leaves that ratio small.
+
+Fix the shrinkage instead of letting the data choose it, and the
+mechanism becomes visible:
+
+\begin{Rblock}
+for (df in c(5, 4, 3, 2, 1)) {
+  f <- tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces +
+                Population + Year, data = longley,
+              rule = "df", target_df = df)
+  cat(sprintf("df %4.1f   q %7.4f   recovery %5.1f%%\n",
+              df, f$q, 100 * f$recovery))
+}
+\end{Rblock}
+
+As the penalty tightens, $q$ grows and so does the share of the
+sacrificed fit that the second parameter restores.
+
+\section{Prediction and residuals}
+
+\begin{Rblock}
+predict(m, longley[1:3, ], estimator = "Ridge-II")
+predict(m, longley[1:3, ], estimator = "OLS")
+head(residuals(m, "Ridge-II"))
+\end{Rblock}
+
+\section{A word on inference}
+
+\texttt{summary()} reports no standard errors, and this is deliberate
+rather than an omission. The sampling distribution of a shrinkage
+estimator is not that of least squares, so the usual standard errors,
+$t$ statistics and confidence intervals do not carry over. Printing them
+would invite a reader to interpret them as if they did.
+
+If inference is needed, a bootstrap that resamples the entire estimation
+procedure, penalty selection included, is the defensible route. For
+least squares coefficients on the same data, \texttt{lm()} together with
+a heteroskedasticity and autocorrelation consistent covariance estimator
+remains appropriate.
+
+\section{When is shrinkage worth it}
+
+The diagnostics answer the first half of the question. A condition
+number in the hundreds or thousands, or variance inflation factors above
+ten, indicate a design on which least squares coefficients are unstable.
+
+Whether the \emph{second} parameter adds anything is a separate question,
+and the summary answers that too, through $q$. Close to one and the
+correction is negligible; materially above one and it recovers most of
+the fit that one-parameter ridge gives up.
 
 % =====================================================================
 \chapter{Downloading data}
@@ -609,8 +735,10 @@ rbindlist(out)
 \toprule
 \textbf{Estimation} & \\
 \midrule
+\texttt{tpr\_lm(formula, data)} & Formula interface, for any
+regression. Returns an object of class \texttt{tpr\_lm}. \\
 \texttt{tpr\_fit(X, y, ...)} & All three estimators from one
-decomposition. Returns an object of class \texttt{tpr\_fit}. \\
+decomposition, taking a matrix. \\
 \texttt{tpr\_q(X, y, lambda)} & The two-parameter scalar, standalone. \\
 \texttt{tpr\_lambda(X, y, rule)} & The penalty, by the data-driven rule
 or for a target effective degrees of freedom. \\
@@ -660,6 +788,8 @@ long-run variance. \\
 
 \section{Methods}
 
+\texttt{print}, \texttt{summary}, \texttt{coef}, \texttt{fitted},
+\texttt{predict} and \texttt{residuals} for \texttt{tpr\_lm};
 \texttt{print}, \texttt{coef}, \texttt{fitted}, \texttt{predict} and
 \texttt{plot} for \texttt{tpr\_fit}; \texttt{print}, \texttt{summary}
 and \texttt{plot} for \texttt{tpr\_rolling}; \texttt{print} and
@@ -703,6 +833,45 @@ compute both against the same benchmark.
 Install it with \texttt{install.packages("MCS")}. It is suggested rather
 than required so that the package installs without it.
 
+\paragraph{``lazy-load database is corrupt''.}
+Windows will not overwrite files belonging to a package that is
+currently loaded, so installing over a version already in use leaves the
+database half written. Restart R, then install. If it persists, remove
+the directory and any lock first:
+
+\begin{Rblock}
+unlink(file.path(.libPaths()[1], c("tpridge", "00LOCK-tpridge")),
+       recursive = TRUE, force = TRUE)
+## restart R, then install again with
+##   devtools::install(".", args = "--no-byte-compile")
+\end{Rblock}
+
+\paragraph{``'arg' must be NULL or a character vector''.}
+Something in the global environment is masking a package function,
+usually an older \texttt{tpr\_fit()} left by sourcing a script.
+\texttt{rm(list = ls())}, then reload the package. Turning off
+RStudio's restoration of \texttt{.RData} at startup prevents it
+recurring.
+
+\paragraph{The installer offers to update dependencies and then fails.}
+Decline the update, or restart R before installing so that nothing is
+loaded. Installing with
+
+\begin{Rblock}
+remotes::install_github("talhaomer472/tpridge", upgrade = "never")
+\end{Rblock}
+
+skips the question. The package works with any \texttt{data.table} from
+1.14.0 onwards, so there is no reason to force an update.
+
+\paragraph{``Skipping install, the SHA1 has not changed''.}
+The installed version already matches the one on GitHub. Nothing is
+wrong. Use \texttt{force = TRUE} to reinstall anyway.
+
+\paragraph{Rtools warnings on Windows.}
+This package contains no compiled code, so Rtools is not needed. The
+warning appears during any source installation and can be ignored.
+
 % =====================================================================
 \chapter{References}
 
@@ -734,6 +903,11 @@ regression: some simulations. \emph{Communications in Statistics} 4,
 \noindent
 Kupiec, P. (1995). Techniques for verifying the accuracy of risk
 measurement models. \emph{Journal of Derivatives} 3, 73--84.
+
+\noindent
+Longley, J. W. (1967). An appraisal of least squares programs for the
+electronic computer from the point of view of the user. \emph{Journal of
+the American Statistical Association} 62, 819--841.
 
 \noindent
 Lipovetsky, S. and Conklin, W. M. (2005). Ridge regression in

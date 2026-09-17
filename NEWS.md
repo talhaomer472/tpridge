@@ -18,6 +18,14 @@
   Longley data, the design Hoerl and Kennard used when they introduced
   ridge regression.
 
+* The user manual gains a chapter on general regression and an expanded
+  troubleshooting chapter covering the installation messages Windows
+  users meet. Twenty-one pages, at `inst/manual/tpridge-manual.pdf`.
+
+* A reference manual in the standard R format, one entry per function
+  with description, usage, arguments, value and examples. Thirty-six
+  pages, at `inst/manual/tpridge-reference-manual.pdf`.
+
 ## Fixed
 
 * `har_features()` no longer raises a shallow-copy warning from

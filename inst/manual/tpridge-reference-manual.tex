@@ -1,0 +1,964 @@
+\documentclass[10pt,a4paper]{report}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{fancyvrb}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage[hidelinks,bookmarksnumbered]{hyperref}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+
+\DefineVerbatimEnvironment{Rcode}{Verbatim}%
+  {fontsize=\small, frame=leftline, framerule=1pt,
+   rulecolor=\color{gray}, framesep=8pt, xleftmargin=10pt}
+
+\titleformat{\section}[hang]{\Large\bfseries}{}{0pt}{}
+\titlespacing*{\section}{0pt}{20pt}{8pt}
+% Starred section, so hyperref builds no bookmark from the escaped
+% name; the bookmark and the label are added from the plain key.
+\newcommand{\entry}[3]{%
+  \clearpage
+  \phantomsection
+  \label{ent:#3}%
+  \pdfbookmark[1]{#3}{bm:#3}%
+  \section*{#1 \hfill \normalfont\normalsize\emph{#2}}%
+  \markboth{#3}{}}
+\newcommand{\subhead}[1]{\medskip\noindent\textbf{#1}\par\nopagebreak\smallskip}
+
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\itshape\leftmark}\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\sectionmark}[1]{\markboth{#1}{}}
+
+\begin{document}
+\thispagestyle{empty}
+\begin{center}
+{\LARGE\bfseries Package `tpridge'}\\[10pt]
+{\Large Reference Manual}\\[6pt]
+{\large Version 0.2.0}
+\end{center}
+\vspace{18pt}
+
+\noindent
+\begin{longtable}{@{}p{0.16\textwidth} p{0.80\textwidth}@{}}
+\textbf{Type} & Package \\[3pt]
+\textbf{Title} & Two-Parameter Ridge Estimation of HAR Realized-Volatility Models \\[3pt]
+\textbf{Version} & 0.2.0 \\[3pt]
+\textbf{Depends} & R ($\geq$ 4.1.0) \\[3pt]
+\textbf{Imports} & data.table ($\geq$ 1.14.0), methods, stats, utils, graphics, grDevices \\[3pt]
+\textbf{Suggests} & ggplot2, sandwich, lmtest, MCS, rugarch, future, future.apply, testthat, knitr, rmarkdown \\[3pt]
+\textbf{License} & GPL-3 \\[3pt]
+\textbf{Encoding} & UTF-8 \\[3pt]
+\textbf{URL} & \texttt{https://github.com/talhaomer472/tpridge} \\[3pt]
+\textbf{Description} & Estimation, forecasting and evaluation for heterogeneous
+autoregressive (HAR) models of realized volatility using the two-parameter
+ridge estimator of Lipovetsky and Conklin (2005). The package covers the full
+pipeline: downloading five-minute klines directly from Binance, constructing
+realized measures, estimating ordinary least squares and the one- and
+two-parameter ridge estimators on rolling windows, evaluating forecasts with
+Diebold-Mariano tests, the model confidence set and Value-at-Risk backtests,
+and reproducing the Monte Carlo design of the accompanying paper. The
+estimator is not specific to volatility models: a formula interface,
+\texttt{tpr\_lm()}, applies it to any regression, and the penalty and the
+two-parameter scalar are exported as standalone functions so they can be used
+with any design matrix. \\
+\end{longtable}
+
+\vspace{14pt}
+\noindent\textbf{\large R topics documented:}
+\vspace{6pt}
+\begin{longtable}{@{}p{0.55\textwidth}@{\extracolsep{\fill}}r@{}}
+\texttt{binance\_klines} \dotfill & \pageref{ent:binanceklines} \\
+\texttt{binance\_symbols} \dotfill & \pageref{ent:binancesymbols} \\
+\texttt{coef.tpr\_fit} \dotfill & \pageref{ent:coeftprfit} \\
+\texttt{fitted.tpr\_fit} \dotfill & \pageref{ent:fittedtprfit} \\
+\texttt{har\_design} \dotfill & \pageref{ent:hardesign} \\
+\texttt{har\_features} \dotfill & \pageref{ent:harfeatures} \\
+\texttt{har\_simulate} \dotfill & \pageref{ent:harsimulate} \\
+\texttt{plot.tpr\_fit} \dotfill & \pageref{ent:plottprfit} \\
+\texttt{plot.tpr\_mc} \dotfill & \pageref{ent:plottprmc} \\
+\texttt{plot.tpr\_rolling} \dotfill & \pageref{ent:plottprrolling} \\
+\texttt{predict.tpr\_fit} \dotfill & \pageref{ent:predicttprfit} \\
+\texttt{predict.tpr\_lm} \dotfill & \pageref{ent:predicttprlm} \\
+\texttt{print.summary.tpr\_lm} \dotfill & \pageref{ent:printsummarytprlm} \\
+\texttt{print.tpr\_fit} \dotfill & \pageref{ent:printtprfit} \\
+\texttt{print.tpr\_lm} \dotfill & \pageref{ent:printtprlm} \\
+\texttt{print.tpr\_mc} \dotfill & \pageref{ent:printtprmc} \\
+\texttt{print.tpr\_rolling} \dotfill & \pageref{ent:printtprrolling} \\
+\texttt{realized\_measures} \dotfill & \pageref{ent:realizedmeasures} \\
+\texttt{residuals.tpr\_lm} \dotfill & \pageref{ent:residualstprlm} \\
+\texttt{summary.tpr\_lm} \dotfill & \pageref{ent:summarytprlm} \\
+\texttt{summary.tpr\_rolling} \dotfill & \pageref{ent:summarytprrolling} \\
+\texttt{tpr\_dm} \dotfill & \pageref{ent:tprdm} \\
+\texttt{tpr\_eff\_df} \dotfill & \pageref{ent:tpreffdf} \\
+\texttt{tpr\_fit} \dotfill & \pageref{ent:tprfit} \\
+\texttt{tpr\_lambda} \dotfill & \pageref{ent:tprlambda} \\
+\texttt{tpr\_lm} \dotfill & \pageref{ent:tprlm} \\
+\texttt{tpr\_mcs} \dotfill & \pageref{ent:tprmcs} \\
+\texttt{tpr\_metrics} \dotfill & \pageref{ent:tprmetrics} \\
+\texttt{tpr\_montecarlo} \dotfill & \pageref{ent:tprmontecarlo} \\
+\texttt{tpr\_q} \dotfill & \pageref{ent:tprq} \\
+\texttt{tpr\_rolling} \dotfill & \pageref{ent:tprrolling} \\
+\texttt{tpr\_var\_backtest} \dotfill & \pageref{ent:tprvarbacktest} \\
+\texttt{tpr\_window} \dotfill & \pageref{ent:tprwindow} \\
+\end{longtable}
+\newpage
+
+\entry{binance\_klines}{Download five-minute klines from Binance}{binanceklines}
+\subhead{Description}
+Downloads the monthly kline archives published at \texttt{data.binance.vision} and returns them as a single table. Nothing is required beyond an internet connection: the files are public and no API key is needed.
+
+Two details matter for replication and are handled here. Binance switched the \texttt{open\_time} field from milliseconds to microseconds partway through the history, which is detected and normalised. And some archives carry a header row while others do not, which is also detected.
+
+\subhead{Usage}
+\begin{Rcode}
+binance_klines(symbol,
+    from,
+    to,
+    interval = "5m",
+    dir = file.path(tempdir(),
+    "binance"),
+    quiet = FALSE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{symbol} & Trading pair, for example \texttt{"BTCUSDT"}. \\[3pt]
+\texttt{from} & First and last month, as \texttt{"YYYY-MM"}. \\[3pt]
+\texttt{to} & First and last month, as \texttt{"YYYY-MM"}. \\[3pt]
+\texttt{interval} & Kline interval. Default \texttt{"5m"}. \\[3pt]
+\texttt{dir} & Directory in which to cache the downloaded archives. A month already present is not downloaded again. Default is a session temporary directory. \\[3pt]
+\texttt{quiet} & Suppress progress messages. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A \texttt{data.table} with columns \texttt{open\_time} (POSIXct, UTC), \texttt{open}, \texttt{high}, \texttt{low}, \texttt{close}, \texttt{volume}, \texttt{quote\_volume}, \texttt{num\_trades}, \texttt{taker\_buy\_base}, \texttt{taker\_buy\_quote}.
+
+\subhead{Examples}
+\begin{Rcode}
+ 
+ # one month of Bitcoin data
+ k <- binance_klines("BTCUSDT", from = "2024-01", to = "2024-01")
+ head(k)
+ }
+\end{Rcode}
+\vspace{8pt}
+\entry{binance\_symbols}{Symbols used in the accompanying paper}{binancesymbols}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+binance_symbols()
+\end{Rcode}
+\subhead{Value}
+A character vector of Binance trading pairs.
+
+\subhead{Examples}
+\begin{Rcode}
+ binance_symbols()
+\end{Rcode}
+\vspace{8pt}
+\entry{coef.tpr\_fit}{Coefficients of a fitted model}{coeftprfit}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+coef.tpr_fit(object, estimator = "Ridge-II", ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{object} & An object of class \texttt{tpr\_fit}. \\[3pt]
+\texttt{estimator} & One of \texttt{"OLS"}, \texttt{"Ridge-I"} or \texttt{"Ridge-II"}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A named numeric vector on the original scale, including the intercept.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ f <- tpr_fit(matrix(rnorm(300), ncol = 3), rnorm(100))
+ coef(f, "Ridge-I")
+\end{Rcode}
+\vspace{8pt}
+\entry{fitted.tpr\_fit}{Fitted values of a fitted model}{fittedtprfit}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+fitted.tpr_fit(object, estimator = "Ridge-II", ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{object} & An object of class \texttt{tpr\_fit}. \\[3pt]
+\texttt{estimator} & One of \texttt{"OLS"}, \texttt{"Ridge-I"} or \texttt{"Ridge-II"}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A numeric vector of in-sample fitted values.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ f <- tpr_fit(matrix(rnorm(300), ncol = 3), rnorm(100))
+ head(fitted(f))
+\end{Rcode}
+\vspace{8pt}
+\entry{har\_design}{Design matrix and response from a feature table}{hardesign}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+har_design(features, predictors = NULL)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{features} & Output of [har\_features()]. \\[3pt]
+\texttt{predictors} & Character vector of column names to use. Default is every column other than \texttt{y} and \texttt{date}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A list with \texttt{X}, \texttt{y} and \texttt{date}, complete cases only.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ d <- har_features(har_simulate(500, sigma2 = 0.5))
+ des <- har_design(d)
+ dim(des$X)
+\end{Rcode}
+\vspace{8pt}
+\entry{har\_features}{HAR features from a daily realized measure}{harfeatures}
+\subhead{Description}
+Builds the daily, weekly and monthly components of the HAR model as rolling averages ending at $t-1$, together with the lead of the target, so that each row contains a forecast origin and the value it predicts. The logarithmic transformation is the default because a squared error criterion applied to realized variance in levels is dominated by a handful of days.
+
+\subhead{Usage}
+\begin{Rcode}
+har_features(rv,
+    date = NULL,
+    lags = c(1,
+    5,
+    22),
+    log = TRUE,
+    extra = NULL)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{rv} & Numeric vector of daily realized variance, in time order. \\[3pt]
+\texttt{date} & Optional vector of dates, carried through to the output. \\[3pt]
+\texttt{lags} & Averaging windows. Default \texttt{c(1, 5, 22)}, the daily, weekly and monthly components of Corsi (2009). \\[3pt]
+\texttt{log} & Return the logarithm of each component. Default \texttt{TRUE}. \\[3pt]
+\texttt{extra} & Optional \texttt{data.frame} of further predictors, aligned with \texttt{rv}, appended unchanged. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A \texttt{data.table} whose first column \texttt{y} is the target for the next day, followed by the HAR components and any extras.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ rv <- har_simulate(500, sigma2 = 0.5)
+ d <- har_features(rv)
+ head(d)
+\end{Rcode}
+\vspace{8pt}
+\entry{har\_simulate}{Simulate a HAR process}{harsimulate}
+\subhead{Description}
+Generates $RV_t=\mu_t\eta_t$ with $\mu_t=\alpha+\beta_d RV_{t-1}+\beta_w \overline{RV}^{(w)}_{t-1} +\beta_m \overline{RV}^{(m)}_{t-1}$ and $\eta_t\sim\mathrm{Gamma}(k,1/k)$ with unit mean. Positivity is structural: no truncation or transformation is applied, and the conditional mean is exactly the HAR conditional mean.
+
+\subhead{Usage}
+\begin{Rcode}
+har_simulate(n,
+    sigma2,
+    alpha = 0.1,
+    betas = c(0.3,
+    0.3,
+    0.3),
+    burn = 300L)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{n} & Number of usable observations returned. \\[3pt]
+\texttt{sigma2} & Variance of the multiplicative shock, equal to $1/k$. \\[3pt]
+\texttt{alpha} & Intercept, strictly positive. \\[3pt]
+\texttt{betas} & The three persistence parameters, non-negative and summing to less than one. \\[3pt]
+\texttt{burn} & Burn-in discarded before the returned sample. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A numeric vector of length \texttt{n + 22}, so that [har\_features()] yields exactly \texttt{n} usable rows.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ rv <- har_simulate(1000, sigma2 = 0.5)
+ c(mean = mean(rv), min = min(rv))
+\end{Rcode}
+\vspace{8pt}
+\entry{plot.tpr\_fit}{Plot a fitted model}{plottprfit}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+plot.tpr_fit(x, which = c("path", "coef", "gap"), n_grid = 40L, ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & An object of class \texttt{tpr\_fit}. \\[3pt]
+\texttt{which} & One of \texttt{"path"}, the coefficient of determination of all three estimators against the effective degrees of freedom; \texttt{"coef"}, the standardized coefficients; or \texttt{"gap"}, the fit gain of Proposition 2 against the penalty. \\[3pt]
+\texttt{n\_grid} & Number of penalty values on the path. \\[3pt]
+\texttt{...} & Passed to the underlying plotting calls. \\[3pt]
+\end{longtable}
+\subhead{Value}
+Invisibly, the data behind the plot.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ X <- matrix(rnorm(300), ncol = 3)
+ y <- as.numeric(X %*% c(1, 0.5, 0.2)) + rnorm(100)
+ plot(tpr_fit(X, y), which = "path")
+\end{Rcode}
+\vspace{8pt}
+\entry{plot.tpr\_mc}{Plot a Monte Carlo study}{plottprmc}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+plot.tpr_mc(x, which = c("r2", "recovery", "identity"), ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & An object of class \texttt{tpr\_mc}. \\[3pt]
+\texttt{which} & One of \texttt{"r2"}, the out-of-sample fit by sample size; \texttt{"recovery"}, the share of the sacrificed fit that the second parameter restores; or \texttt{"identity"}, the empirical fit gain against its theoretical value. \\[3pt]
+\texttt{...} & Passed to the underlying plotting calls. \\[3pt]
+\end{longtable}
+\subhead{Value}
+Invisibly, the data behind the plot.
+
+\subhead{Examples}
+\begin{Rcode}
+ 
+ mc <- tpr_montecarlo(n = c(100, 200), sigma2 = 0.5, reps = 20, seed = 1)
+ plot(mc, which = "identity")
+ }
+\end{Rcode}
+\vspace{8pt}
+\entry{plot.tpr\_rolling}{Plot rolling forecasts}{plottprrolling}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+plot.tpr_rolling(x,
+    which = c("forecast",
+    "q",
+    "lambda",
+    "path"),
+    estimator = "Ridge-II",
+    log = TRUE,
+    ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & An object of class \texttt{tpr\_rolling}. \\[3pt]
+\texttt{which} & One of \texttt{"forecast"}, the realization against the forecast; \texttt{"q"}, the two-parameter scalar over time; \texttt{"lambda"}, the penalty and the effective degrees of freedom; or \texttt{"path"}, the out-of-sample fit against the effective degrees of freedom, which requires the object to have been produced with \texttt{rule = "df"}. \\[3pt]
+\texttt{estimator} & Estimator to display where only one is shown. \\[3pt]
+\texttt{log} & Plot on a logarithmic vertical scale. \\[3pt]
+\texttt{...} & Passed to the underlying plotting calls. \\[3pt]
+\end{longtable}
+\subhead{Value}
+Invisibly, the data behind the plot.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ des <- har_design(har_features(har_simulate(600, sigma2 = 0.5)))
+ r <- tpr_rolling(des$X, des$y, window = 250)
+ plot(r, which = "q")
+\end{Rcode}
+\vspace{8pt}
+\entry{predict.tpr\_fit}{Forecast from a fitted model}{predicttprfit}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+predict.tpr_fit(object,
+    newdata,
+    estimator = "Ridge-II",
+    level = FALSE,
+    ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{object} & An object of class \texttt{tpr\_fit}. \\[3pt]
+\texttt{estimator} & One of \texttt{"OLS"}, \texttt{"Ridge-I"} or \texttt{"Ridge-II"}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\texttt{newdata} & Matrix of new regressor values, with the same columns as the design used to fit. \\[3pt]
+\texttt{level} & Return the forecast on the level scale, applying $\exp(\hat f + \hat\sigma^2/2)$. Appropriate only when the model was fitted to a logarithm. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A numeric vector of forecasts.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ X <- matrix(rnorm(300), ncol = 3); y <- rnorm(100)
+ f <- tpr_fit(X[1:90, ], y[1:90])
+ predict(f, X[91:100, ])
+\end{Rcode}
+\vspace{8pt}
+\entry{predict.tpr\_lm}{}{predicttprlm}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+predict.tpr_lm(object, newdata, estimator = "Ridge-II", ...)
+\end{Rcode}
+\vspace{8pt}
+\entry{print.summary.tpr\_lm}{}{printsummarytprlm}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+print.summary.tpr_lm(x, ...)
+\end{Rcode}
+\vspace{8pt}
+\entry{print.tpr\_fit}{Print a fitted model}{printtprfit}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+print.tpr_fit(x, ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & An object of class \texttt{tpr\_fit}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\end{longtable}
+\subhead{Value}
+\texttt{x}, invisibly.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ print(tpr_fit(matrix(rnorm(300), ncol = 3), rnorm(100)))
+\end{Rcode}
+\vspace{8pt}
+\entry{print.tpr\_lm}{}{printtprlm}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+print.tpr_lm(x, ...)
+\end{Rcode}
+\vspace{8pt}
+\entry{print.tpr\_mc}{Print a Monte Carlo study}{printtprmc}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+print.tpr_mc(x, ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & An object of class \texttt{tpr\_mc}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\end{longtable}
+\subhead{Value}
+\texttt{x}, invisibly.
+
+\subhead{Examples}
+\begin{Rcode}
+ 
+ print(tpr_montecarlo(n = 150, sigma2 = 0.5, reps = 5, progress = FALSE))
+ }
+\end{Rcode}
+\vspace{8pt}
+\entry{print.tpr\_rolling}{Print rolling forecasts}{printtprrolling}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+print.tpr_rolling(x, ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & An object of class \texttt{tpr\_rolling}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\end{longtable}
+\subhead{Value}
+\texttt{x}, invisibly.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ des <- har_design(har_features(har_simulate(400, 0.5)))
+ print(tpr_rolling(des$X, des$y, window = 150))
+\end{Rcode}
+\vspace{8pt}
+\entry{realized\_measures}{Daily realized measures from intraday prices}{realizedmeasures}
+\subhead{Description}
+Aggregates intraday closes into the daily measures used by the HAR literature. Returns are differenced over the full series rather than within each day, so a complete day contributes one return per interval including the one spanning midnight. This is the right convention for a market that trades continuously; set \texttt{within\_day = TRUE} to exclude it, at the cost of one return per day.
+
+\subhead{Usage}
+\begin{Rcode}
+realized_measures(x,
+    bars_per_day = 288L,
+    min_share = 0.9,
+    within_day = FALSE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & A table with an \texttt{open\_time} column of class POSIXct and a \texttt{close} column, as returned by [binance\_klines()]. Volume columns are used when present. \\[3pt]
+\texttt{bars\_per\_day} & Expected number of intervals in a full day. For five-minute data this is 288. \\[3pt]
+\texttt{min\_share} & Days with fewer than this share of the expected intervals have their measures set to \texttt{NA}. Default \texttt{0.9}. \\[3pt]
+\texttt{within\_day} & Compute returns within each calendar day only. Default \texttt{FALSE}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A \texttt{data.table} with one row per day: \texttt{date}, \texttt{n\_5m}, \texttt{complete\_day}, \texttt{RV}, \texttt{BV}, \texttt{Jump}, \texttt{RSV\_pos}, \texttt{RSV\_neg}, \texttt{RQ}, \texttt{RSkew}, \texttt{RKurt}, \texttt{Parkinson}, \texttt{ret\_d}, \texttt{abs\_ret\_d}, \texttt{close}, and, when the inputs are present, \texttt{log\_volume}, \texttt{num\_trades}, \texttt{taker\_buy\_share}, \texttt{amihud\_proxy}.
+
+\subhead{Examples}
+\begin{Rcode}
+ 
+ k <- binance_klines("BTCUSDT", "2024-01", "2024-02")
+ rm_ <- realized_measures(k)
+ head(rm_[, .(date, RV, BV, Jump)])
+ }
+\end{Rcode}
+\vspace{8pt}
+\entry{residuals.tpr\_lm}{}{residualstprlm}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+residuals.tpr_lm(object, estimator = "Ridge-II", ...)
+\end{Rcode}
+\vspace{8pt}
+\entry{summary.tpr\_lm}{Summarise a two-parameter ridge regression}{summarytprlm}
+\subhead{Description}
+Reports the coefficients of all three estimators side by side, together with the diagnostics that bear on whether shrinkage is called for: the variance inflation factors, the condition number of the design, the penalty, the scalar \texttt{q} and the effective degrees of freedom.
+
+No standard errors are given. The sampling distribution of a shrinkage estimator is not that of least squares, so the usual standard errors and the tests built on them do not carry over. Inference for the ridge estimators would require a bootstrap.
+
+\subhead{Usage}
+\begin{Rcode}
+summary.tpr_lm(object, ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{object} & An object of class \texttt{tpr\_lm}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\end{longtable}
+\subhead{Value}
+An object of class \texttt{summary.tpr\_lm}, invisibly printed.
+
+\subhead{Examples}
+\begin{Rcode}
+ data(longley)
+ summary(tpr_lm(Employed ~ GNP + Unemployed + Year, data = longley))
+\end{Rcode}
+\vspace{8pt}
+\entry{summary.tpr\_rolling}{Summarise rolling forecasts}{summarytprrolling}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+summary.tpr_rolling(object, ...)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{object} & An object of class \texttt{tpr\_rolling}. \\[3pt]
+\texttt{...} & Ignored. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A \texttt{data.table} with one row per penalty rule and estimator, giving the mean squared error, the out-of-sample coefficient of determination against the prevailing mean, the mean in-sample fit, the median penalty, and the mean values of \texttt{q} and the effective degrees of freedom.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ des <- har_design(har_features(har_simulate(400, 0.5)))
+ summary(tpr_rolling(des$X, des$y, window = 150))
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_dm}{Diebold and Mariano test with a HAC long-run variance}{tprdm}
+\subhead{Description}
+A positive statistic means the first loss series is the larger, that is, the second model forecasts better.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_dm(loss_a, loss_b, lag = NULL)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{loss\_a} & Loss series of equal length. \\[3pt]
+\texttt{loss\_b} & Loss series of equal length. \\[3pt]
+\texttt{lag} & Truncation lag. \texttt{NULL} uses $\lfloor 4(n/100)^{2/9}\rfloor$. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A named vector with the statistic, its p value and the lag.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1); la <- rchisq(300, 2); lb <- rchisq(300, 2)
+ tpr_dm(la, lb)
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_eff\_df}{Effective degrees of freedom of the ridge operator}{tpreffdf}
+\subhead{Description}
+The quantity $\mathrm{df}(\lambda)=\sum_j e_j/(e_j+\lambda)$, where $e_j$ are the eigenvalues of $X'X$. It falls from $p$ at $\lambda=0$ towards zero as the penalty grows, and is comparable across sample sizes and designs in a way that $\lambda$ itself is not.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_eff_df(x, lambda, standardize = TRUE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{x} & Either a numeric matrix of regressors, or a vector of eigenvalues of the cross-product matrix. \\[3pt]
+\texttt{lambda} & Non-negative penalty. \\[3pt]
+\texttt{standardize} & Logical. If \texttt{x} is a matrix, standardize its columns before forming the cross-product. Default \texttt{TRUE}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A single number, the effective degrees of freedom.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ X <- matrix(rnorm(300), ncol = 3)
+ tpr_eff_df(X, lambda = 0)
+ tpr_eff_df(X, lambda = 1e6)
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_fit}{Fit OLS, one-parameter ridge and two-parameter ridge}{tprfit}
+\subhead{Description}
+All three estimators come from a single decomposition of the design, so the comparison between them is exact. The same $\lambda$ enters the one-parameter estimator and the computation of $q$, which is required for $q$ to maximise the fit along the ray.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_fit(X,
+    y,
+    lambda = NULL,
+    rule = c("hkb",
+    "df"),
+    target_df = NULL,
+    standardize = TRUE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{lambda} & Penalty. If \texttt{NULL} it is selected by \texttt{rule}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+An object of class \texttt{tpr\_fit}.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ X <- matrix(rnorm(300), ncol = 3)
+ y <- as.numeric(X %*% c(1, 0.5, 0.2)) + rnorm(100)
+ f <- tpr_fit(X, y)
+ f
+ coef(f, "Ridge-II")
+ abs(f$gap_empirical - f$gap_theoretical) < 1e-12
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_lambda}{Ridge penalty}{tprlambda}
+\subhead{Description}
+Two selection rules. \texttt{"hkb"} is the data-driven rule of Hoerl, Kennard and Baldwin (1975), $\hat\lambda = p\hat\sigma^2/\hat\beta'_{OLS}\hat\beta_{OLS}$. \texttt{"df"} solves $\mathrm{df}(\lambda)=$ \texttt{target\_df} by one-dimensional root finding, which lets the user state the amount of shrinkage in interpretable units.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_lambda(X,
+    y,
+    rule = c("hkb",
+    "df"),
+    target_df = NULL,
+    standardize = TRUE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{X} & Numeric matrix of regressors, without an intercept column. \\[3pt]
+\texttt{y} & Numeric response. \\[3pt]
+\texttt{rule} & Either \texttt{"hkb"} or \texttt{"df"}. \\[3pt]
+\texttt{target\_df} & Target effective degrees of freedom, required when \texttt{rule = "df"}. Must lie in \texttt{(0, ncol(X)]}. \\[3pt]
+\texttt{standardize} & Logical. Standardize the columns of \texttt{X} and centre \texttt{y} first. Default \texttt{TRUE}, and recommended: the penalty is not scale invariant. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A single non-negative number.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ X <- matrix(rnorm(300), ncol = 3)
+ y <- as.numeric(X %*% c(1, 0.5, 0.2)) + rnorm(100)
+ tpr_lambda(X, y)
+ tpr_lambda(X, y, rule = "df", target_df = 1.5)
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_lm}{Two-parameter ridge with a formula}{tprlm}
+\subhead{Description}
+A formula interface to [tpr\_fit()], so the estimator can be used on any regression in the way \texttt{lm()} is used. Nothing about the two-parameter ridge is specific to volatility models: it is a general remedy for an ill-conditioned design.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_lm(formula,
+    data,
+    lambda = NULL,
+    rule = c("hkb",
+    "df"),
+    target_df = NULL,
+    subset = NULL,
+    na.action = stats::na.omit,
+    standardize = TRUE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{formula} & A model formula, as for [stats::lm()]. \\[3pt]
+\texttt{data} & A data frame, list or environment holding the variables. \\[3pt]
+\texttt{lambda} & Penalty. If \texttt{NULL} it is chosen by \texttt{rule}. \\[3pt]
+\texttt{rule} & Either \texttt{"hkb"}, the data-driven rule of Hoerl, Kennard and Baldwin, or \texttt{"df"}, which solves for the penalty delivering \texttt{target\_df} effective degrees of freedom. \\[3pt]
+\texttt{target\_df} & Target effective degrees of freedom, used when \texttt{rule = "df"}. \\[3pt]
+\texttt{subset} & Optional vector of rows to use. \\[3pt]
+\texttt{na.action} & How to treat missing values. Defaults to [stats::na.omit()]. \\[3pt]
+\texttt{standardize} & Standardize the regressors before estimation. Default \texttt{TRUE}, and recommended: the penalty is not scale invariant. \\[3pt]
+\end{longtable}
+\subhead{Value}
+An object of class \texttt{tpr\_lm}, inheriting from \texttt{tpr\_fit}, with the call, terms and model frame attached so that \texttt{predict()} and \texttt{summary()} behave as expected.
+
+\subhead{See Also}
+[tpr\_fit()] for the matrix interface, [summary.tpr\_lm()]
+
+\subhead{Examples}
+\begin{Rcode}
+ ## The classic ill-conditioned design of Longley (1967)
+ data(longley)
+ m <- tpr_lm(Employed ~ GNP + Unemployed + Armed.Forces +
+               Population + Year, data = longley)
+ m
+ summary(m)
+ coef(m, "Ridge-II")
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_mcs}{Model confidence set}{tprmcs}
+\subhead{Description}
+A thin wrapper around \texttt{MCS::MCSprocedure} that accepts a matrix of losses and returns a tidy table, extracting the result slot across the versions of that package.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_mcs(loss, alpha = 0.10, B = 5000L, statistic = "Tmax")
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{loss} & Matrix of losses, one column per model. \\[3pt]
+\texttt{alpha} & Size of the test. Default \texttt{0.10}. \\[3pt]
+\texttt{B} & Bootstrap replications. Default \texttt{5000}. \\[3pt]
+\texttt{statistic} & Either \texttt{"Tmax"} or \texttt{"TR"}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A \texttt{data.table}, or \texttt{NULL} if the procedure fails.
+
+\subhead{Examples}
+\begin{Rcode}
+ 
+ set.seed(1)
+ L <- cbind(a = rchisq(300, 2), b = rchisq(300, 2.2), c = rchisq(300, 3))
+ tpr_mcs(L)
+ }
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_metrics}{Forecast loss measures}{tprmetrics}
+\subhead{Description}
+\subhead{Usage}
+\begin{Rcode}
+tpr_metrics(actual, pred, benchmark = NULL, level = FALSE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{actual} & Numeric vector of realizations. \\[3pt]
+\texttt{pred} & Numeric vector of forecasts. \\[3pt]
+\texttt{benchmark} & Benchmark forecast used for the coefficient of determination. Default is the prevailing mean of \texttt{actual}. \\[3pt]
+\texttt{level} & Compute the quasi-likelihood loss, which requires both arguments to be strictly positive. Default \texttt{FALSE}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A one-row \texttt{data.table}.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1); a <- rnorm(100); f <- a + rnorm(100, sd = 0.5)
+ tpr_metrics(a, f)
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_montecarlo}{Monte Carlo study of the three estimators}{tprmontecarlo}
+\subhead{Description}
+Reproduces the design of the accompanying paper. For each cell of the grid the process of [har\_simulate()] is drawn afresh, split into an estimation and an evaluation part, and all three estimators are rolled forward. When several penalty targets are supplied they are applied to the same simulated path within a replication, so the comparison across penalties is paired.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_montecarlo(n = c(100,
+    200,
+    400,
+    500),
+    sigma2 = c(0.1,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    1.0,
+    1.1,
+    1.2),
+    reps = 1000L,
+    train_frac = 0.4,
+    rule = c("hkb",
+    "df"),
+    target_df = c(3,
+    2.5,
+    2,
+    1.5,
+    1,
+    0.5),
+    alpha = 0.1,
+    betas = c(0.3,
+    0.3,
+    0.3),
+    seed = NULL,
+    progress = TRUE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{n} & Sample sizes to consider. \\[3pt]
+\texttt{sigma2} & Variances of the multiplicative shock. \\[3pt]
+\texttt{reps} & Replications per cell. \\[3pt]
+\texttt{train\_frac} & Share of each sample used for estimation. \\[3pt]
+\texttt{rule} & Penalty rule, \texttt{"hkb"} or \texttt{"df"}. \\[3pt]
+\texttt{target\_df} & Targets used when \texttt{rule = "df"}. \\[3pt]
+\texttt{alpha} & Parameters of the data-generating process. \\[3pt]
+\texttt{betas} & Parameters of the data-generating process. \\[3pt]
+\texttt{seed} & Seed for reproducibility. \\[3pt]
+\texttt{progress} & Report each cell as it completes. \\[3pt]
+\end{longtable}
+\subhead{Value}
+An object of class \texttt{tpr\_mc}, a \texttt{data.table} with one row per replication, cell and estimator.
+
+\subhead{Examples}
+\begin{Rcode}
+ 
+ mc <- tpr_montecarlo(n = 200, sigma2 = 0.5, reps = 20, seed = 1)
+ print(mc)
+ }
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_q}{The two-parameter scalar q}{tprq}
+\subhead{Description}
+The scalar that maximises the coefficient of determination along the ray \textbackslash\{\}eqn\{\textbackslash\{\}\{q\textbackslash\{\}hat\textbackslash\{\}beta\_\{I\}\textbackslash\{\}\}\}, namely $q = Q_1/Q_2$ with $Q_1 = \hat\beta_I' r$ and $Q_2 = \hat\beta_I' G \hat\beta_I$. It exceeds one for every $\lambda > 0$, since $q = 1 + \lambda\|\hat\beta_I\|^2/\|X\hat\beta_I\|^2$.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_q(X,
+    y,
+    lambda = NULL,
+    rule = c("hkb",
+    "df"),
+    target_df = NULL,
+    standardize = TRUE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{X} & Numeric matrix of regressors, without an intercept column. \\[3pt]
+\texttt{y} & Numeric response. \\[3pt]
+\texttt{rule} & Either \texttt{"hkb"} or \texttt{"df"}. \\[3pt]
+\texttt{target\_df} & Target effective degrees of freedom, required when \texttt{rule = "df"}. Must lie in \texttt{(0, ncol(X)]}. \\[3pt]
+\texttt{standardize} & Logical. Standardize the columns of \texttt{X} and centre \texttt{y} first. Default \texttt{TRUE}, and recommended: the penalty is not scale invariant. \\[3pt]
+\texttt{lambda} & Penalty. If \texttt{NULL} it is selected by \texttt{rule}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A single number greater than one, carrying attributes \texttt{lambda}, \texttt{rho} and \texttt{eff\_df}.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ X <- matrix(rnorm(300), ncol = 3)
+ y <- as.numeric(X %*% c(1, 0.5, 0.2)) + rnorm(100)
+ q <- tpr_q(X, y, lambda = 10)
+ q > 1
+ attr(q, "eff_df")
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_rolling}{Rolling one-step-ahead forecasts}{tprrolling}
+\subhead{Description}
+Refits all three estimators in every window and returns one row per forecast origin per estimator. The window is decomposed once and every penalty rule requested is evaluated on that decomposition, which is what makes a path over several penalties inexpensive.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_rolling(X,
+    y,
+    window,
+    date = NULL,
+    rule = c("hkb",
+    "df"),
+    target_df = NULL,
+    log_target = TRUE,
+    progress = FALSE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{X} & Numeric matrix of regressors. \\[3pt]
+\texttt{y} & Numeric response, aligned with the rows of \texttt{X}. \\[3pt]
+\texttt{window} & Width of the rolling estimation window. \\[3pt]
+\texttt{date} & Optional vector of dates for the rows of \texttt{X}. \\[3pt]
+\texttt{rule} & Penalty rule, \texttt{"hkb"} or \texttt{"df"}. \\[3pt]
+\texttt{target\_df} & Either a single target or a vector of targets, used when \texttt{rule = "df"}. When several are supplied, all are applied to the same window, so the comparison across penalties is paired. \\[3pt]
+\texttt{log\_target} & The response is on the logarithmic scale, so forecasts are also returned on the level scale with the correction $\exp(\hat f + \hat\sigma^2/2)$. Default \texttt{TRUE}. \\[3pt]
+\texttt{progress} & Print progress every 500 windows. \\[3pt]
+\end{longtable}
+\subhead{Value}
+An object of class \texttt{tpr\_rolling}, a \texttt{data.table} with the forecast, the realization, the penalty, \texttt{q}, the effective degrees of freedom, the condition number, the in-sample fit and the two fit-gain quantities of Proposition 2.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ d <- har_features(har_simulate(600, sigma2 = 0.5))
+ des <- har_design(d)
+ r <- tpr_rolling(des$X, des$y, window = 250)
+ summary(r)
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_var\_backtest}{Value-at-Risk backtests}{tprvarbacktest}
+\subhead{Description}
+Builds \textbackslash\{\}eqn\{\textbackslash\{\}widehat\{VaR\}\_\{t+1\}=z\_\textbackslash\{\}alpha\textbackslash\{\}sqrt\{\textbackslash\{\}hat f\_\{t+1\}\}\} from a variance forecast and tests the resulting violation sequence with the unconditional coverage test of Kupiec (1995) and the independence test of Christoffersen (1998).
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_var_backtest(variance_forecast,
+    returns,
+    alpha = 0.01,
+    dist = c("normal",
+    "student"),
+    df = 5)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{variance\_forecast} & Numeric vector of one-step variance forecasts, strictly positive. \\[3pt]
+\texttt{returns} & Realized returns for the same days. \\[3pt]
+\texttt{alpha} & Tail probability, for example \texttt{0.01}. \\[3pt]
+\texttt{dist} & Either \texttt{"normal"} or \texttt{"student"}. \\[3pt]
+\texttt{df} & Degrees of freedom when \texttt{dist = "student"}. Default \texttt{5}. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A one-row \texttt{data.table} with the violation rate and both tests.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ v <- rep(4e-4, 1000); r <- rnorm(1000, sd = sqrt(v))
+ tpr_var_backtest(v, r, alpha = 0.05)
+\end{Rcode}
+\vspace{8pt}
+\entry{tpr\_window}{Decompose a design once}{tprwindow}
+\subhead{Description}
+Standardizes the regressors, centres the response, and returns the sufficient statistics together with the eigenvalues, so that every penalty rule can be evaluated without repeating the expensive work.
+
+\subhead{Usage}
+\begin{Rcode}
+tpr_window(X, y, standardize = TRUE)
+\end{Rcode}
+\subhead{Arguments}
+\begin{longtable}{@{}p{0.17\textwidth} p{0.79\textwidth}@{}}
+\texttt{X} & Numeric matrix of regressors, without an intercept column. \\[3pt]
+\texttt{y} & Numeric response. \\[3pt]
+\texttt{rule} & Either \texttt{"hkb"} or \texttt{"df"}. \\[3pt]
+\texttt{target\_df} & Target effective degrees of freedom, required when \texttt{rule = "df"}. Must lie in \texttt{(0, ncol(X)]}. \\[3pt]
+\texttt{standardize} & Logical. Standardize the columns of \texttt{X} and centre \texttt{y} first. Default \texttt{TRUE}, and recommended: the penalty is not scale invariant. \\[3pt]
+\end{longtable}
+\subhead{Value}
+A list of sufficient statistics.
+
+\subhead{Examples}
+\begin{Rcode}
+ set.seed(1)
+ w <- tpr_window(matrix(rnorm(300), ncol = 3), rnorm(100))
+ round(w$eigenvalues, 2)
+\end{Rcode}
+\vspace{8pt}
+\end{document}
